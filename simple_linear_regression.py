@@ -1,3 +1,4 @@
+from fontTools.afmLib import error
 import numpy as np
 from tqdm.auto import tqdm
 
@@ -14,11 +15,14 @@ class SimpleLinearRegression:
     def mse_loss(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         return np.mean((y_true - y_pred) ** 2)
 
-    def backward(self,x: np.ndarray, y_true: np.ndarray, y_pred: np.ndarray) -> tuple[np.ndarray, float]:
-        loss = self.mse_loss(y_true, y_pred)
+    def backward(self,x: np.ndarray, y_true: np.ndarray, y_pred: np.ndarray,loss="mse") -> tuple[np.ndarray, float]:
         n_samples = x.shape[0]
 
-        dloss_dpred = -2 * (y_true - y_pred) / n_samples
+        if loss == 'mse':
+            dloss_dpred = -2 * (y_true - y_pred) / n_samples
+        elif loss == 'rmse':
+            rmse = self.rmse_loss(y_true, y_pred)
+            dloss_dpred = - (y_true - y_pred) / (rmse * n_samples)
         dpred_dN = np.ones_like(y_true)
         dN_dweight = np.transpose(x)
         dpred_dbias = np.ones_like(y_true)
@@ -34,11 +38,13 @@ class SimpleLinearRegression:
         self.bias = np.random.rand(1,)
         if loss == 'mse':
             loss_function = self.mse_loss
+        elif loss == 'rmse':
+            loss_function = self.rmse_loss   
 
         for epoch in tqdm(range(epochs)):
             y_pred = self.forward(x)
-            w_grad, b_grad = self.backward(x, y, y_pred)
-            error = loss_function(y, y_pred)
+            w_grad, b_grad = self.backward(x, y, y_pred,loss=loss)
+            error   = loss_function(y, y_pred)
             self.weight -= learning_rate * w_grad
             self.bias -= learning_rate * b_grad
             if epoch % 100 == 0:
@@ -46,6 +52,14 @@ class SimpleLinearRegression:
 
     def predict(self, x: np.ndarray) -> np.ndarray:
         return np.dot(x, self.weight) + self.bias
+    
+    def rmse_loss(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        return np.sqrt(np.mean((y_true - y_pred) ** 2))
+
+    def r_squared(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        ss_total = np.sum((y_true - np.mean(y_true)) ** 2)
+        ss_residual = np.sum((y_true - y_pred) ** 2)
+        return 1 - (ss_residual / ss_total)
 
 if __name__ == "__main__":
     # Example usage
@@ -53,7 +67,8 @@ if __name__ == "__main__":
     y = np.matmul(x, np.array([[2.0], [3.0], [4.0]])) + 5.0 
 
     model = SimpleLinearRegression()
-    model.fit(x, y, learning_rate=0.01, epochs=1000)
+    model.fit(x, y, learning_rate=0.01, epochs=1000,loss="rmse")
 
     print("Trained weights:", model.weight)
     print("Trained bias:", model.bias)
+    print("R-squared:", model.r_squared(y, model.predict(x)))

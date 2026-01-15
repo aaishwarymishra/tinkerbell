@@ -14,7 +14,7 @@ class SimpleLinearRegression:
     def mse_loss(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         return np.mean((y_true - y_pred) ** 2)
 
-    def backward(self,x: np.ndarray, y_true: np.ndarray, y_pred: np.ndarray,loss) -> tuple[np.ndarray, float]:
+    def backward(self,x: np.ndarray, y_true: np.ndarray, y_pred: np.ndarray) -> tuple[np.ndarray, float]:
         loss = self.mse_loss(y_true, y_pred)
         n_samples = x.shape[0]
 
@@ -37,8 +37,8 @@ class SimpleLinearRegression:
 
         for epoch in tqdm(range(epochs)):
             y_pred = self.forward(x)
-            w_grad, b_grad = self.backward(x, y, y_pred,loss=loss_function)
-
+            w_grad, b_grad = self.backward(x, y, y_pred)
+            error = loss_function(y, y_pred)
             self.weight -= learning_rate * w_grad
             self.bias -= learning_rate * b_grad
             if epoch % 100 == 0:

@@ -14,29 +14,30 @@ class SimpleLinearRegression:
     def mse_loss(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         return np.mean((y_true - y_pred) ** 2)
 
-    def backward(self,x: np.ndarray, y_true: np.ndarray, y_pred: np.ndarray) -> tuple[np.ndarray, float]:
+    def backward(self,x: np.ndarray, y_true: np.ndarray, y_pred: np.ndarray,loss) -> tuple[np.ndarray, float]:
         loss = self.mse_loss(y_true, y_pred)
         n_samples = x.shape[0]
 
-        dloss_dy_pred = -2 * (y_true - y_pred) / n_samples
-        dy_pred_dbias_sum = np.ones_like(y_true)
-        dy_pred_dweight = np.transpose(x)
-        dloss_dbias = np.ones_like(y_true)
+        dloss_dpred = -2 * (y_true - y_pred) / n_samples
+        dpred_dN = np.ones_like(y_true)
+        dN_dweight = np.transpose(x)
+        dpred_dbias = np.ones_like(y_true)
 
-        weights_grad = np.matmul(dy_pred_dweight, (dloss_dy_pred* dy_pred_dbias_sum))
-        bias_grad = np.sum(dloss_dy_pred * dloss_dbias)
+        weights_grad = np.matmul(dN_dweight, (dloss_dpred * dpred_dN))
+        bias_grad = np.sum(dloss_dpred * dpred_dbias)
         return weights_grad, bias_grad
 
-    def fit(self, x: np.ndarray, y: np.ndarray, learning_rate: float = 0.01, epochs: int = 1000):
+    def fit(self, x: np.ndarray, y: np.ndarray, learning_rate: float = 0.01, epochs: int = 1000,loss='mse'):
         assert x.shape[0] == y.shape[0], "Number of samples in x and y must be the same."
         n_samples, n_features = x.shape
         self.weight = np.random.rand(n_features, 1)
         self.bias = np.random.rand(1,)
+        if loss == 'mse':
+            loss_function = self.mse_loss
 
         for epoch in tqdm(range(epochs)):
             y_pred = self.forward(x)
-            error = self.mse_loss(y, y_pred)
-            w_grad, b_grad = self.backward(x, y, y_pred)
+            w_grad, b_grad = self.backward(x, y, y_pred,loss=loss_function)
 
             self.weight -= learning_rate * w_grad
             self.bias -= learning_rate * b_grad

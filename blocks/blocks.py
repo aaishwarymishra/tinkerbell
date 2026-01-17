@@ -1,5 +1,5 @@
-from matplotlib.tests.test_widgets import ax
 import numpy as np
+from blocks.loss import Loss
 
 class FunctionBlock:
     def __init__(self):
@@ -45,7 +45,7 @@ class LinearBlock(FunctionBlock):
 
 
 class WeightMatrixBlock(LinearBlock):
-    def __init__(self, input_dim: int, weight: np.ndarray):
+    def __init__(self, weight: np.ndarray):
         super().__init__(weight)
         
     def forward(self, input: np.ndarray) -> np.ndarray:
@@ -80,14 +80,86 @@ class BiasBlock(LinearBlock):
     def param_grad(self, grad_output: np.ndarray) -> np.ndarray:
         return np.sum(grad_output, axis=0, keepdims=True)
 
+class Layer:
+    def __init__(self,output_dim:int|None):
+        self.blocks = []
+        self.params = []
+        self.grad_params = []
+        self.output_dim = output_dim
+        self.first_forward = True
 
-class SigmoidBlock(FunctionBlock):
-    def __init__(self):
-        super().__init__()
+    def set_input_dim(self, input_dim:int):
+        raise NotImplementedError("set_input_dim method not implemented.")
+
+
+    def __call__(self, input: np.ndarray) -> np.ndarray:
+ 
+        if self.first_forward:
+            self.set_input_dim(input.shape[-1])
+            self.first_forward = False
+        
+        output = self.forward(input)
+        return output
 
     def forward(self, input: np.ndarray) -> np.ndarray:
-        return 1 / (1 + np.exp(-input))
+        out = input
+        for block in self.blocks:
+            out = block(out)
+        return out
+        
 
-    def input_grad(self, grad_output: np.ndarray) -> np.ndarray:
-        sigmoid_derivative = self._output * (1 - self._output)
-        return grad_output * sigmoid_derivative
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        grad = grad_output
+        grad_params = []
+        params = []
+        for block in reversed(self.blocks):
+            grad = block.backward(grad)
+        return grad
+    
+    def get_params(self) -> list[np.ndarray]:
+        params = []
+        for block in self.blocks:
+            if isinstance(block, LinearBlock):
+                params.append(block.param)
+        return params
+
+    def get_grad_params(self) -> list[np.ndarray]:
+        grad_params = []
+        for block in self.blocks:
+            if isinstance(block, LinearBlock):
+                grad_params.append(block._grad_param)
+        return grad_params
+
+class Model:
+    def __init__(self,layers: list[Layer] | None, loss: Loss):
+        self.layers: list[Layer] = layers if layers is not None else []
+        self.loss = loss
+
+    def add(self, layer: Layer):
+        self.layers.append(layer)
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return self.forward(x)
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        out = x
+        for layer in self.layers:
+            out = layer(out)
+        return out
+
+    def backward(self,loss_grad) -> None:
+        grad = loss_grad
+        for layer in reversed(self.layers):
+            grad = layer.backward(grad)
+
+    def get_params(self) -> list[np.ndarray]:
+        params = []
+        for layer in self.layers:
+            params.extend(layer.get_params())
+        return params
+
+    def get_grad_params(self) -> list[np.ndarray]:
+        grad_params = []
+        for layer in self.layers:
+            grad_params.extend(layer.get_grad_params())
+        return grad_params

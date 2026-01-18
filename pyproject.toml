@@ -1,6 +1,9 @@
 [project]
-name = "mini-ml-framework"
+name = "tinkerbell"
 version = "0.1.0"
+authors=[
+    {name="Aaiswarya Mishra",email="aaishwarymishra@gmail.com"}
+]
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"

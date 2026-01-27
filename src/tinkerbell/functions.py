@@ -1,15 +1,13 @@
-from tinkerbell.core import FunctionBlock
+from tinkerbell.tensor import Tensor
 import numpy as np
 
-class SigmoidBlock(FunctionBlock):
-    def __init__(self):
-        super().__init__()
+def Sigmoid(tensor: Tensor) -> Tensor:
+    data = 1 / (1 + np.exp(-tensor.data))
+    out = Tensor(data, (tensor,))
 
-    def forward(self, input: np.ndarray) -> np.ndarray:
-        return 1 / (1 + np.exp(-input))
+    def _backward():
+        sigmoid_derivative = out.data * (1 - out.data)
+        tensor.grad += out.grad * sigmoid_derivative
 
-    def input_grad(self, grad_output: np.ndarray) -> np.ndarray:
-        if self._output is None:
-            raise ValueError("Output not set; build model by sending input first.")
-        sigmoid_derivative = self._output * (1 - self._output)
-        return grad_output * sigmoid_derivative
+    out._backward = _backward
+    return out

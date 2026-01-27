@@ -1,6 +1,6 @@
 [project]
 name = "tinkerbell"
-version = "0.1.0"
+version = "0.2.0"
 authors=[
     {name="Aaiswarya Mishra",email="aaishwarymishra@gmail.com"}
 ]
@@ -12,3 +12,7 @@ dependencies = [
     "numpy>=2.4.1",
     "tqdm>=4.67.1",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

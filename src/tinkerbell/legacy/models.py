@@ -1,8 +1,8 @@
-from tinkerbell.loss import Loss
-from tinkerbell.optimizer import Optimizer
+from tinkerbell.legacy.loss import Loss
+from tinkerbell.legacy.optimizer import Optimizer
 from tqdm.auto import tqdm
 import numpy as np
-from tinkerbell.layers import Layer
+from tinkerbell.legacy.layers import Layer
 
 class Model:
     def __init__(self,layers: list[Layer] | None):

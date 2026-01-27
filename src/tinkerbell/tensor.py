@@ -1,4 +1,7 @@
+from re import S
+from typing import Self
 import numpy as np
+from collections import defaultdict
 
 """
 A class representing a tensor in the forward pass of a neural network for forward Autograd.
@@ -84,9 +87,22 @@ class Tensor:
     def __init__(self, data, parents = (), requires_grad=False):
         self.data = np.array(data)
         self.requires_grad = requires_grad
-        self.grad = 0
+        self.grad = np.zeros_like(self.data)
         self._backward = lambda: None
         self._prev = set(parents)
+        self.shape = self.data.shape
+        self.ndim = self.data.ndim
+
+    @classmethod
+    def handle_broadcasting(cls, grad, target_shape):
+        # Sum out leading dimensions if grad has more dimensions
+        while grad.ndim > len(target_shape):
+            grad = np.sum(grad, axis=0, keepdims=False)
+        # Sum out dimensions that were broadcasted (size 1)
+        for i, dim in enumerate(target_shape):
+            if dim == 1:
+                grad = np.sum(grad,axis=i, keepdims=True)
+        return grad
 
 
     def __add__(self, other):
@@ -95,14 +111,14 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += out.grad
-                other.grad += out.grad
+                self.grad += self.handle_broadcasting(out.grad, self.shape)
+                other.grad += self.handle_broadcasting(out.grad, other.shape)
             
         else:
             data = self.data + other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += out.grad
+                self.grad += self.handle_broadcasting(out.grad, self.shape)
 
         out._backward = _backward
         return out
@@ -113,14 +129,14 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += other.data * out.grad
-                other.grad += self.data * out.grad
+                self.grad += self.handle_broadcasting(out.grad * other.data, self.shape)
+                other.grad += self.handle_broadcasting(out.grad * self.data, other.shape)
             
         else:
             data = self.data * other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += other * out.grad
+                self.grad += self.handle_broadcasting(out.grad * other, self.shape)
 
         out._backward = _backward
         return out
@@ -131,14 +147,14 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += out.grad
-                other.grad -= out.grad
+                self.grad += self.handle_broadcasting(out.grad, self.shape)
+                other.grad -= self.handle_broadcasting(out.grad, other.shape)
             
         else:
             data = self.data - other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += out.grad
+                self.grad += self.handle_broadcasting(out.grad, self.shape)
 
         out._backward = _backward
         return out
@@ -149,17 +165,106 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += (1 / other.data) * out.grad
-                other.grad -= (self.data / (other.data ** 2)) * out.grad
+                self.grad += self.handle_broadcasting(out.grad * (1 / other.data), self.shape)
+                other.grad -= self.handle_broadcasting(out.grad * (self.data / (other.data ** 2)), other.shape)
             
         else:
             data = self.data / other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += (1 / other) * out.grad
+                self.grad += self.handle_broadcasting(out.grad * (1 / other), self.shape)
 
         out._backward = _backward
         return out
+
+    def __pow__(self, power):
+        data = self.data ** power
+        out = Tensor(data, (self,))
+
+        def _backward():
+            self.grad += self.handle_broadcasting(out.grad * (power * self.data ** (power - 1)), self.shape)
+
+        out._backward = _backward
+        return out
+
+    @classmethod
+    def matmul(cls,a:np.ndarray|Self, b:np.ndarray|Self) -> Self:
+        if isinstance(a,Tensor) and isinstance(b, Tensor):
+            data = a.data @ b.data
+            out = cls(data, (a, b))
+
+            def _backward():
+                # Use swapaxes for proper batch matmul transpose backprop
+                a_grad = out.grad @ (b.data.swapaxes(-1, -2) if b.data.ndim >= 2 else b.data)
+                b_grad = (a.data.swapaxes(-1, -2) if a.data.ndim >= 2 else a.data) @ out.grad
+                a.grad += cls.handle_broadcasting(a_grad, a.shape)
+                b.grad += cls.handle_broadcasting(b_grad, b.shape)
+
+        elif isinstance(a, Tensor):
+            data = a.data @ b
+            out = cls(data, (a,))
+
+            def _backward():
+                a_grad = out.grad @ (b.swapaxes(-1, -2) if b.ndim >= 2 else b)
+                a.grad += cls.handle_broadcasting(a_grad, a.shape)
+
+        elif isinstance(b, Tensor):
+            data = a @ b.data
+            out = cls(data, (b,))
+
+            def _backward():
+                b_grad = (a.swapaxes(-1, -2) if a.ndim >= 2 else a) @ out.grad
+                b.grad += cls.handle_broadcasting(b_grad, b.shape)
+
+        out._backward = _backward
+        return out
+
+    @classmethod 
+    def exp(cls, tensor:Self) -> Self:
+        data = np.exp(tensor.data)
+        out = cls(data, (tensor,))
+
+        def _backward():
+            tensor.grad += out.grad * out.data
+
+        out._backward = _backward
+        return out
+
+    @classmethod
+    def randn(cls, shape:tuple[int,...], requires_grad=False) -> Self:
+        if shape is None:
+            raise ValueError("Shape must be provided for randn tensor.")
+        data = np.random.randn(*shape)
+        return cls(data, (), requires_grad)
+    
+    @classmethod
+    def zeros(cls, shape:tuple[int,...], requires_grad=False) -> Self:
+        if shape is None:
+            raise ValueError("Shape must be provided for zeros tensor.")
+        data = np.zeros(shape)
+        return cls(data, (), requires_grad)
+    
+    @classmethod
+    def ones(cls, shape:tuple[int,...], requires_grad=False) -> Self:
+        if shape is None:
+            raise ValueError("Shape must be provided for ones tensor.")
+        data = np.ones(shape)
+        return cls(data, (), requires_grad)
+
+    @classmethod
+    def mean(cls, tensor:Self) -> Self:
+        data = np.mean(tensor.data)
+        out = cls(data, (tensor,))
+
+        def _backward():
+            tensor.grad += out.grad * np.ones_like(tensor.data) / tensor.data.size
+
+        out._backward = _backward
+        return out
+    
+
+    # NOTE:
+    # Potential efficiency improvement with iterative topo sort 
 
     def backward(self):
         topo = []
@@ -178,12 +283,24 @@ class Tensor:
 
         for node in reversed(topo):
             node._backward()
+
+    def __getitem__(self, idx):
+        data = self.data[idx]
+        out = Tensor(data, ())
+        return out
             
 
     def __repr__(self):
         return f"Tensor(data={self.data}, size={self.data.shape})"
 
 
+class Parameter(Tensor):
+    def __init__(self, data):
+        if isinstance(data, Tensor):
+            self.__dict__.update(data.__dict__)
+            self.requires_grad = True
+        else:
+            super().__init__(data,requires_grad=True)
 
 
 
@@ -201,6 +318,12 @@ if __name__ == "__main__":
     d = a * b + c * (a + b)
     d.backward()
     print("Reverse Tensor a:", a, "with grad")
+
+    a = Tensor(np.random.randn(5,3), requires_grad=True)
+    b = Tensor(np.random.randn(3,4), requires_grad=True)
+    c = Tensor.matmul(a,b)
+    c.backward()
+    print("Tensor MatMul c:", c, "with grad", c.grad)
     # Expected output:
     # c.primal = 2.0 * 3.0 + 2.0 / 3.0 - 4.0 = 6.666666666666667
     # c.tangent = (b.primal * a.tangent + a.primal * b.tangent) + (a.tangent / b.primal - a.primal * b.tangent / (b.primal ** 2))

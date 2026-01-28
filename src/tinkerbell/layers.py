@@ -63,6 +63,8 @@ class Layer:
 
 class Dense(Layer):
     def __init__(self, input_dim: int, output_dim: int):
+        if input_dim <= 0 or output_dim <= 0:
+            raise ValueError("Input and output dimensions must be positive integers.")
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -70,6 +72,8 @@ class Dense(Layer):
         self.bias = Parameter(Tensor.randn((output_dim,), requires_grad=True))
 
     def forward(self, input: Tensor) -> Tensor:
+        if input.shape[-1] != self.input_dim:
+            raise ValueError(f"Input shape mismatch. Expected last dimension to be {self.input_dim}, got {input.shape[-1]}")
         return Tensor.matmul(input, self.weights) + self.bias
 
 class Sigmoid(Layer):

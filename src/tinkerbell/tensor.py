@@ -191,6 +191,10 @@ class Tensor:
 
     @classmethod
     def matmul(cls,a:np.ndarray|Self, b:np.ndarray|Self) -> Self:
+        a_shape = a.shape if isinstance(a, Tensor) else a.shape
+        b_shape = b.shape if isinstance(b, Tensor) else b.shape
+        if a_shape[-1] != b_shape[-2]:
+            raise ValueError(f"Incompatible shapes for matmul: {a_shape} and {b_shape}")
         if isinstance(a,Tensor) and isinstance(b, Tensor):
             data = a.data @ b.data
             out = cls(data, (a, b))

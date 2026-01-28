@@ -1,5 +1,5 @@
 from tinkerbell.tensor import Tensor, Parameter
-from tinkerbell.functions import Sigmoid
+from tinkerbell.functions import sigmoid, relu
 from tinkerbell.optimizer import Optimizer
 from tinkerbell.loss import Loss
 import hashlib
@@ -61,7 +61,7 @@ class Layer:
     def __repr__(self):
         return f"Layer(name={self.name}, parameters={list(self._parameters.keys())}, layers={list(self._layers.keys())})"
 
-class DenseLayer(Layer):
+class Dense(Layer):
     def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
         self.input_dim = input_dim
@@ -72,14 +72,21 @@ class DenseLayer(Layer):
     def forward(self, input: Tensor) -> Tensor:
         return Tensor.matmul(input, self.weights) + self.bias
 
-class SigmoidLayer(Layer):
+class Sigmoid(Layer):
     def __init__(self):
         super().__init__()
 
     def forward(self, input: Tensor) -> Tensor:
-        return Sigmoid(input)
+        return sigmoid(input)
 
-class SeqLayer(Layer):
+class ReLU(Layer):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input: Tensor) -> Tensor:
+        return relu(input)
+
+class Sequential(Layer):
 
     def __init__(self,layers: list[Layer] | None):
         super().__init__()  

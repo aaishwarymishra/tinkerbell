@@ -102,6 +102,8 @@ class Tensor:
         for i, dim in enumerate(target_shape):
             if dim == 1:
                 grad = np.sum(grad,axis=i, keepdims=True)
+            elif grad.shape[i] != dim:
+                raise ValueError("Incompatible shapes for broadcasting during backpropagation.")
         return grad
 
 
@@ -111,14 +113,14 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad, self.shape)
-                other.grad += self.handle_broadcasting(out.grad, other.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad, self.shape)
+                other.grad += Tensor.handle_broadcasting(out.grad, other.shape)
             
         else:
             data = self.data + other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad, self.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad, self.shape)
 
         out._backward = _backward
         return out
@@ -129,14 +131,14 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad * other.data, self.shape)
-                other.grad += self.handle_broadcasting(out.grad * self.data, other.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad * other.data, self.shape)
+                other.grad += Tensor.handle_broadcasting(out.grad * self.data, other.shape)
             
         else:
             data = self.data * other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad * other, self.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad * other, self.shape)
 
         out._backward = _backward
         return out
@@ -147,14 +149,14 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad, self.shape)
-                other.grad -= self.handle_broadcasting(out.grad, other.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad, self.shape)
+                other.grad -= Tensor.handle_broadcasting(out.grad, other.shape)
             
         else:
             data = self.data - other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad, self.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad, self.shape)
 
         out._backward = _backward
         return out
@@ -165,24 +167,24 @@ class Tensor:
             out = Tensor(data, (self, other))
 
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad * (1 / other.data), self.shape)
-                other.grad -= self.handle_broadcasting(out.grad * (self.data / (other.data ** 2)), other.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad * (1 / other.data), self.shape)
+                other.grad -= Tensor.handle_broadcasting(out.grad * (self.data / (other.data ** 2)), other.shape)
             
         else:
             data = self.data / other
             out = Tensor(data, (self,))
             def _backward():
-                self.grad += self.handle_broadcasting(out.grad * (1 / other), self.shape)
+                self.grad += Tensor.handle_broadcasting(out.grad * (1 / other), self.shape)
 
         out._backward = _backward
         return out
 
-    def __pow__(self, power):
+    def __pow__(self, power:int|float):
         data = self.data ** power
         out = Tensor(data, (self,))
 
         def _backward():
-            self.grad += self.handle_broadcasting(out.grad * (power * self.data ** (power - 1)), self.shape)
+            self.grad += Tensor.handle_broadcasting(out.grad * (power * self.data ** (power - 1)), self.shape)
 
         out._backward = _backward
         return out
@@ -284,9 +286,11 @@ class Tensor:
         for node in reversed(topo):
             node._backward()
 
+    # ----------------------------- TODO: Advanced Indexing and Slicing ----------------------------- #
+    """ TODO: Implement __getitem__ for advanced indexing and slicing """
     def __getitem__(self, idx):
         data = self.data[idx]
-        out = Tensor(data, ())
+        out = Tensor(data, (self,))
         return out
             
 

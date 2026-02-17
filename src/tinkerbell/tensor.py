@@ -1,7 +1,6 @@
-from re import S
 from typing import Self
-import numpy as np
-from collections import defaultdict
+import numpy as np 
+import jax.numpy as jnp
 
 """
 A class representing a tensor in the forward pass of a neural network for forward Autograd.
@@ -14,14 +13,14 @@ In format x + 𝜖X`:
 """
 class ForwardTensor:
     def __init__(self,primal, requires_grad=False,tangent=None):
-        self.primal = np.array(primal)
+        self.primal = jnp.array(primal)
         self.requires_grad = requires_grad
         if requires_grad and tangent is None:
-            self.tangent = np.ones_like(self.primal)
+            self.tangent = jnp.ones_like(self.primal)
         elif tangent is None:
-            self.tangent = np.zeros_like(self.primal)
+            self.tangent = jnp.zeros_like(self.primal)
         else:
-            self.tangent = np.array(tangent)
+            self.tangent = jnp.array(tangent)
         
     def __add__(self, other):
         if isinstance(other, ForwardTensor):
@@ -70,14 +69,14 @@ class ForwardTensor:
 
 
     # def sin(self):
-    #     primal = np.sin(self.primal)
-    #     tangent = self.tangent * np.cos(self.primal)
+    #     primal = jnp.sin(self.primal)
+    #     tangent = self.tangent * jnp.cos(self.primal)
     #     return ForwardTensor(primal, self.requires_grad, tangent)
 
 
     # def cos(self):
-    #     primal = np.cos(self.primal)
-    #     tangent = -self.tangent * np.sin(self.primal)
+    #     primal = jnp.cos(self.primal)
+    #     tangent = -self.tangent * jnp.sin(self.primal)
     #     return ForwardTensor(primal, self.requires_grad, tangent)
 
 
@@ -85,9 +84,9 @@ class ForwardTensor:
 
 class Tensor:
     def __init__(self, data, parents = (), requires_grad=False):
-        self.data = np.array(data)
+        self.data = jnp.array(data)
         self.requires_grad = requires_grad
-        self.grad = np.zeros_like(self.data)
+        self.grad = jnp.zeros_like(self.data)
         self._backward = lambda: None
         self._prev = set(parents)
         self.shape = self.data.shape
@@ -97,11 +96,11 @@ class Tensor:
     def handle_broadcasting(cls, grad, target_shape):
         # Sum out leading dimensions if grad has more dimensions
         while grad.ndim > len(target_shape):
-            grad = np.sum(grad, axis=0, keepdims=False)
+            grad = jnp.sum(grad, axis=0, keepdims=False)
         # Sum out dimensions that were broadcasted (size 1)
         for i, dim in enumerate(target_shape):
             if dim == 1:
-                grad = np.sum(grad,axis=i, keepdims=True)
+                grad = jnp.sum(grad,axis=i, keepdims=True)
         return grad
 
 
@@ -188,7 +187,7 @@ class Tensor:
         return out
 
     @classmethod
-    def matmul(cls,a:np.ndarray|Self, b:np.ndarray|Self) -> Self:
+    def matmul(cls,a:jnp.ndarray|Self, b:jnp.ndarray|Self) -> Self:
         if isinstance(a,Tensor) and isinstance(b, Tensor):
             data = a.data @ b.data
             out = cls(data, (a, b))
@@ -221,7 +220,7 @@ class Tensor:
 
     @classmethod 
     def exp(cls, tensor:Self) -> Self:
-        data = np.exp(tensor.data)
+        data = jnp.exp(tensor.data)
         out = cls(data, (tensor,))
 
         def _backward():
@@ -231,7 +230,7 @@ class Tensor:
         return out
 
     @classmethod
-    def randn(cls, shape:tuple[int,...], requires_grad=False) -> Self:
+    def randn(cls, shape:tuple[int,...], requires_grad=False,key=42) -> Self:
         if shape is None:
             raise ValueError("Shape must be provided for randn tensor.")
         data = np.random.randn(*shape)
@@ -241,23 +240,23 @@ class Tensor:
     def zeros(cls, shape:tuple[int,...], requires_grad=False) -> Self:
         if shape is None:
             raise ValueError("Shape must be provided for zeros tensor.")
-        data = np.zeros(shape)
+        data = jnp.zeros(shape)
         return cls(data, (), requires_grad)
     
     @classmethod
     def ones(cls, shape:tuple[int,...], requires_grad=False) -> Self:
         if shape is None:
             raise ValueError("Shape must be provided for ones tensor.")
-        data = np.ones(shape)
+        data = jnp.ones(shape)
         return cls(data, (), requires_grad)
 
     @classmethod
     def mean(cls, tensor:Self) -> Self:
-        data = np.mean(tensor.data)
+        data = jnp.mean(tensor.data)
         out = cls(data, (tensor,))
 
         def _backward():
-            tensor.grad += out.grad * np.ones_like(tensor.data) / tensor.data.size
+            tensor.grad += out.grad * jnp.ones_like(tensor.data) / tensor.data.size
 
         out._backward = _backward
         return out
@@ -279,7 +278,7 @@ class Tensor:
 
         build_topo(self)
 
-        self.grad = np.ones_like(self.data)
+        self.grad = jnp.ones_like(self.data)
 
         for node in reversed(topo):
             node._backward()

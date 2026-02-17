@@ -130,6 +130,7 @@ class SeqLayer(Layer):
             indices = np.arange(num_samples)
             np.random.shuffle(indices)
 
+
             for start_idx in tqdm(range(0, num_samples, batch_size), desc="Training", leave=False):
                 end_idx = min(start_idx + batch_size, num_samples)
                 batch_indices = indices[start_idx:end_idx]
@@ -141,6 +142,7 @@ class SeqLayer(Layer):
 
                 self.loss.backward()
                 self.optimizer.step()
+
 
             if validation_data is not None:
                 if isinstance(val_x, np.ndarray):

@@ -127,6 +127,7 @@ class Sequential(Layer):
             raise ValueError("Model not compiled. Please set loss and optimizer before training.")
 
         assert x.shape[0] == y.shape[0], "Mismatched number of samples between x and y."
+        val_x, val_y = (None, None)
         if validation_data is not None:
             val_x, val_y = validation_data
             assert val_x.shape[0] == val_y.shape[0], "Mismatched number of samples between validation x and y."
@@ -135,32 +136,51 @@ class Sequential(Layer):
             x = Tensor(x)
         if isinstance(y, np.ndarray):
             y = Tensor(y)
+        # convert validation data once (if provided)
+        if val_x is not None and isinstance(val_x, np.ndarray):
+            val_x = Tensor(val_x)
+        if val_y is not None and isinstance(val_y, np.ndarray):
+            val_y = Tensor(val_y)
         
         for epoch in range(epochs):
-            print(f"Epoch {epoch+1}/{epochs}")
             num_samples = x.shape[0]
             indices = np.arange(num_samples)
             np.random.shuffle(indices)
 
+            epoch_loss = 0.0
+            batch_count = 0
 
-            for start_idx in tqdm(range(0, num_samples, batch_size), desc="Training", leave=False):
+            # show running/epoch loss in tqdm description and current batch loss as postfix
+            progress = tqdm(range(0, num_samples, batch_size), desc=f"Epoch {epoch+1}/{epochs} - Train Loss: 0.0000", leave=False)
+            for start_idx in progress:
                 end_idx = min(start_idx + batch_size, num_samples)
                 batch_indices = indices[start_idx:end_idx]
                 batch_x = x[batch_indices]
                 batch_y = y[batch_indices]
 
                 predictions = self(batch_x)
-                loss_value = self.loss(batch_y, predictions)
+                loss_tensor = self.loss(batch_y, predictions)
 
+                batch_loss = float(loss_tensor.data)
+                epoch_loss += batch_loss
+                batch_count += 1
+                running_loss = epoch_loss / batch_count
+
+                # backward and update
                 self.loss.backward()
                 self.optimizer.step()
 
+                # update tqdm with running (avg) train loss and current batch loss
+                progress.set_description(f"Epoch {epoch+1}/{epochs} - Train Loss: {running_loss:.4f}")
+                progress.set_postfix({"batch_loss": f"{batch_loss:.4f}"})
 
-            if validation_data is not None:
-                if isinstance(val_x, np.ndarray):
-                    val_x = Tensor(val_x)
-                if isinstance(val_y, np.ndarray):
-                    val_y = Tensor(val_y)
+            train_loss = (epoch_loss / batch_count) if batch_count > 0 else 0.0
+
+            if val_x is not None and val_y is not None:
                 val_predictions = self(val_x)
-                val_loss_value = self.loss(val_predictions, val_y)
-                print(f"Validation Loss: {val_loss_value:.4f}")
+                val_loss_tensor = self.loss(val_y, val_predictions)
+                val_loss = float(val_loss_tensor.data)
+                # PyTorch-like single-line epoch summary
+                print(f"Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f}")
+            else:
+                print(f"Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.4f}")

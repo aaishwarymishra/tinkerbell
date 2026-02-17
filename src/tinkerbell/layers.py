@@ -44,6 +44,9 @@ class Layer:
             self.name = self.__class__.__name__
 
     def parameters(self):
+        if self.first_forward:
+            self.build()
+            self.first_forward = False
         for name, param in self._parameters.items():
             yield param
         for name, layer in self._layers.items():
@@ -96,8 +99,6 @@ class Sequential(Layer):
         super().__init__()  
         self.layers: list[Layer] = layers if layers is not None else []
 
-    def build(self):
-        pass
 
     def forward(self, input:Tensor) -> Tensor:
         out = input
